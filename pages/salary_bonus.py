@@ -37,8 +37,11 @@ def process_uploaded_data(uploaded_file, data_type: str) -> tuple:
             st.error("アップロードファイルと選択区分が合っていません")
             return None, None
 
-        processed_df = processor.process_data()
-        return processed_df, processor
+        if not processor.process_uploaded_data():
+            st.error("データの処理に失敗しました")
+            return None, None
+
+        return processor.df, processor
 
     except Exception as e:
         st.error(f"データ処理中にエラーが発生しました: {str(e)}")
@@ -67,36 +70,35 @@ def display_summary(processor) -> None:
         st.markdown(summary_style, unsafe_allow_html=True)
 
         with st.expander("サマリー", expanded=True):
-            # 基本情報の表示
-            total_payee = processor.total_payee or 0
-            total_payment = processor.total_payment or 0
-            total_transfer = processor.total_transfer_amount or 0
+            if processor.summary is not None:
+                total_row = processor.summary.iloc[-1]
+                
+                # メトリクスの表示
+                col1, col2, col3 = st.columns([1,1,2])
+                
+                with col1:
+                    st.metric("総支給人数", f"{int(total_row['支給人数']):,}人")
+                with col2:
+                    if '一人当たり支給額' in total_row:
+                        st.metric("一人当たり支給額", f"{int(total_row['一人当たり支給額']):,}円")
+                with col1:
+                    if '支給総額' in total_row:
+                        st.metric("支給総額", f"{int(total_row['支給総額']):,}円")
+                with col2:
+                    if '振込金額' in total_row:
+                        st.metric("振込金額", f"{int(total_row['振込金額']):,}円")
 
-            # 総受給者数の表示
-            st.write(f' **総受給者数: {total_payee:,} 人**')
-
-            # 金額情報の表示
-            col1, col2, col3 = st.columns([1.2, 1.2, 2])
-            col1.write(f' **支給額合計: {total_payment:,} 円**')
-            col2.write(f' **総振込額: {total_transfer:,} 円**')
-
-            # 一人あたりの支払額を計算（ゼロ除算を防止）
-            if total_payee > 0:
-                avg_payment = total_payment / total_payee
-                col3.write(f' **一人あたり支払額: {avg_payment:,.1f} 円**')
-            else:
-                col3.write(' **一人あたり支払額: 0 円**')
-
-            # 部門別サマリーの表示（存在する場合）
-            if hasattr(processor, 'get_summary'):
-                summary_df = processor.get_summary()
-                if summary_df is not None and not summary_df.empty:
-                    st.write("### 部門別集計")
-                    st.dataframe(summary_df.style.format({
-                        '人数': '{:,.0f}',
-                        '支給総額': '{:,.0f}',
-                        '差引支給額': '{:,.0f}'
-                    }), hide_index=True, use_container_width=True)
+                # サマリーテーブルの表示
+                st.write("### 部門別集計")
+                display_df = processor.summary.copy()
+                numeric_cols = ['支給人数', '支給総額', '振込金額', '一人当たり支給額']
+                for col in numeric_cols:
+                    if col in display_df.columns:
+                        display_df[col] = display_df[col].fillna(0).apply(
+                            lambda x: f"{int(x):,}{'人' if col == '支給人数' else '円'}"
+                        )
+                
+                st.dataframe(display_df, use_container_width=True, hide_index=True)
 
     except Exception as e:
         st.error(f"サマリー表示でエラーが発生しました: {str(e)}")
@@ -107,7 +109,6 @@ def display_processed_data(processed_df: 'pd.DataFrame') -> None:
     """
     処理後のデータを表示する。
     """
-    # st.subheader(':chart_with_upwards_trend: 変換後データ')
     st.dataframe(processed_df, use_container_width=True)
 
 
@@ -115,6 +116,8 @@ def display_accounting_data(processed_df: 'pd.DataFrame', processor) -> None:
     """
     会計システム連携用のデータを表示し、ダウンロード機能を提供する。
     """
+    if processed_df is None:
+        return processed_df
 
     # st.subheader('会計システム連携加工用データ', divider='blue')
     tab1, tab2, tab3 = st.tabs(["全体", "月末計上", "支払切返"])
@@ -164,12 +167,9 @@ def app():
     if uploaded_file is not None:
         try:
             # アップロードファイルの変換処理
-            result = process_uploaded_data(uploaded_file, data_type)
+            processed_df, processor = process_uploaded_data(uploaded_file, data_type)
             
-            # データの表示
-            if result is not None and result[0] is not None:
-                processed_df, processor = result
-                
+            if processed_df is not None and processor is not None:
                 # サマリー
                 display_summary(processor)
 
