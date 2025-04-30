@@ -3,6 +3,9 @@ import numpy as np
 from utils.config_loader import ConfigLoader
 from typing import Dict, Any, List, Optional, Tuple
 import streamlit as st
+import unicodedata
+
+
 
 class SalaryDataProcessor:
     """給与データ処理クラス"""
@@ -22,18 +25,30 @@ class SalaryDataProcessor:
             st.error(f"初期化エラー: {str(e)}")
             raise
 
+    def _normalize(self, col):
+        col = unicodedata.normalize('NFKC', str(col))
+        col = col.strip().replace(' ', '').replace('\u3000', '')
+        return col
+
     def _validate_columns(self) -> bool:
         """
         カラムの検証
         Returns:
             bool: 検証結果
         """
-        required_columns = self.config.get_required_columns('salary')
+        required_columns = self.config.get_settings('salary', 'input.required_columns')
         if not required_columns:
             st.error("必須カラムの設定が見つかりません")
             return False
+        
+        csv_columns = [self._normalize(col) for col in self.df.columns]
+        required_columns_normalized = [self._normalize(col) for col in required_columns]
 
-        missing_columns = [col for col in required_columns if col not in self.df.columns]
+        # デバッグ用出力
+        # st.write('csv columns:', csv_columns)
+        # st.write('required columns:', required_columns_normalized)
+
+        missing_columns = [col for col, norm_col in zip(required_columns, required_columns_normalized) if norm_col not in csv_columns]
         if missing_columns:
             st.error(f"必須カラムが不足しています: {', '.join(missing_columns)}")
             return False
@@ -48,7 +63,7 @@ class SalaryDataProcessor:
         Returns:
             pd.DataFrame: 変換後のデータフレーム
         """
-        numeric_columns = self.config.get_numeric_columns('salary')
+        numeric_columns = self.config.get_settings('salary', 'input.numeric_columns')
         if not numeric_columns:
             return df
 
@@ -78,10 +93,14 @@ class SalaryDataProcessor:
             total_columns = self.config.get_settings('salary', 'calculations.total_columns')
             if total_columns:
                 for total_name, group_name in total_columns.items():
-                    group_columns = self.config.get_settings('salary', f'input_columns.salary_items.{group_name}')
+                    group_columns = self.config.get_settings('salary', f'input_columns.groups.{group_name}')
                     if group_columns:
                         existing_columns = [col for col in group_columns if col in df.columns]
-                        if existing_columns:
+                        if not existing_columns:
+                            st.warning(f"{total_name}の計算対象カラムが見つかりません: {group_columns}")
+                        else:
+                            if total_name in df.columns:
+                                df.drop(columns=[total_name], inplace=True)
                             df[total_name] = df[existing_columns].fillna(0).sum(axis=1)
                             # st.success(f"{total_name}の計算が完了しました")
 
@@ -94,7 +113,9 @@ class SalaryDataProcessor:
             # 差引支給額と振込金額の計算
             if '支給総額' in df.columns and '控除合計' in df.columns:
                 df['差引支給額'] = df['支給総額'] - df['控除合計']
-                df['振込金額1'] = df['差引支給額']
+            if '振込金額' in df.columns:
+                df.drop(columns=['振込金額'], inplace=True)
+            df['振込金額'] = df['差引支給額'] - df['差引支給＿負']
                 # st.success("差引支給額と振込金額の計算が完了しました")
 
             return df
@@ -113,25 +134,47 @@ class SalaryDataProcessor:
         """
         try:
             # 列名の変換（設定がなければスキップ）
-            try:
-                rename_rules = self.config.get_settings('salary', 'transformations.columns_rename')
-            except Exception:
-                rename_rules = None
+            rename_rules = self.config.get_settings('salary', 'transformations.columns_rename')
             if rename_rules:
-                df = df.rename(columns=rename_rules)
-                # st.success("列名の変換が完了しました")
+                # 変換前の列名が存在するか確認
+                existing_columns = df.columns.tolist()
+                valid_rules = {
+                    old_col: new_col
+                    for old_col, new_col in rename_rules.items()
+                    if old_col in existing_columns
+                }
 
+                if valid_rules:
+                    df = df.rename(columns=valid_rules)
+
+                    for old_col, new_col in valid_rules.items():
+                        if new_col not in df.columns:
+                            st.warning(f'列名の変換に失敗: {old_col} -> {new_col}')
+                else:
+                    st.warning('有効な列名変換ルールが見つかりません')
+                
             # 条件付き変換とコード変換（メソッドがなければスキップ）
-            if hasattr(self, '_apply_conditional_rules'):
-                try:
-                    self._apply_conditional_rules(df)
-                except Exception:
-                    pass
             if hasattr(self, '_apply_code_mappings'):
                 try:
                     self._apply_code_mappings(df)
                 except Exception:
+                    st.waring(f'コードマッピングでエラーが発生: str{e}')
+
+            if hasattr(self, '_apply_conditional_rules'):
+                try:
+                    self._apply_conditional_rules(df)
+                except Exception:
+                    st.waring(f'コード変換でエラーが発生: str{e}')
                     pass
+
+
+            required_columns = self.config.get_settings('salary', 'output_settings.detail.required_columns')
+            if required_columns:
+                missing_columns = [col for col in required_columns if col not in df.columns]
+                if missing_columns:
+                    st.error(f'返還後の必須カラムが見つかりません: {", ".join(missing_columns)}')
+            else:
+                st.warning('必須カラムの設定が見つかりません')
 
             return df
 
@@ -165,6 +208,7 @@ class SalaryDataProcessor:
             agg_dict = {
                 'コード': 'count',
                 '支給総額': 'sum' if '支給総額' in df.columns else None,
+                '差引支給＿負': 'sum' if '差引支給＿負' in df.columns else None,
                 '振込金額': 'sum' if '振込金額' in df.columns else None
             }
             agg_dict = {k: v for k, v in agg_dict.items() if v is not None}
@@ -209,49 +253,57 @@ class SalaryDataProcessor:
             st.error(f"集計処理でエラーが発生しました: {str(e)}")
             return None
 
-    def process_data(self) -> Optional[pd.DataFrame]:
+    def process_data(self) -> tuple:
         """
         データ処理の実行
         Returns:
-            Optional[pd.DataFrame]: 処理済みデータフレーム
+            tuple: (全項目用データフレーム, サマリー用データフレーム)
         """
         try:
             if not self._validate_columns():
-                return None
+                return None, None
 
             # st.info("データ処理を開始します")
             processed_df = self.df.copy()
             
             # 1. 数値変換
             processed_df = self._convert_numeric_columns(processed_df)
-            
+            # processed_df[processed_df.columns != self.config.get_settings('salary', 'input.numeric_columns')] = processed_df[processed_df.columns != self.config.get_settings('salary', 'input.numeric_columns')].astype(str)
+
+
             # 2. 合計計算
             processed_df = self._calculate_totals(processed_df)
-            
+            #  デバッグ：合計計算後
+            if any(processed_df.columns.duplicated()):
+                st.error(f"[合計計算後] 重複カラム: {processed_df.columns[processed_df.columns.duplicated()].tolist()}")
+
             # 3. 列変換
             processed_df = self._transform_columns(processed_df)
-            
+            # デバッグ：列変換後
+            if any(processed_df.columns.duplicated()):
+                st.error(f"[列変換後] 重複カラム: {processed_df.columns[processed_df.columns.duplicated()].tolist()}")
+
             # 4. カラム順序の変更
-            output_columns = self.config.get_settings('salary', 'output_settings.columns_order')
-            # if output_columns:
-            #     existing_columns = [col for col in output_columns if col in processed_df.columns]
-            #     remaining_columns = [col for col in processed_df.columns if col not in existing_columns]
-            processed_df = processed_df[output_columns]
-                # st.success("カラム順序の変更が完了しました")
+            output_columns_detail = self.config.get_settings('salary', 'output_settings.detail.columns_order')
+            processed_df_detail = processed_df[output_columns_detail]
+            # デバッグ：カラム順序変更後
+            if any(processed_df_detail.columns.duplicated()):
+                st.error(f"[カラム順序変更後] 重複カラム: {processed_df_detail.columns[processed_df_detail.columns.duplicated()].tolist()}")
+            output_columns_summary = self.config.get_settings('salary', 'output_settings.summary.columns_order')
+            processed_df_summary = processed_df[output_columns_summary]
 
             # 5. サマリーの計算
-            self.summary = self._calculate_summary(processed_df)
+            self.summary = self._calculate_summary(processed_df_summary)
             
             # 処理完了フラグを設定
             self.processed = True
-            self.df = processed_df
 
             # st.success("全ての処理が完了しました")
-            return processed_df
+            return processed_df_detail, processed_df_summary
 
         except Exception as e:
             st.error(f"データ処理エラー: {str(e)}")
-            return None
+            return None, None
 
     def process_uploaded_data(self) -> bool:
         """
@@ -313,13 +365,39 @@ class SalaryDataProcessor:
     def _apply_code_mappings(self, df: pd.DataFrame) -> None:
         """
         設定ファイルのcode_mappingsに従い、コード値を名称等に変換する
+        Args：
+            df: 変換対象のデータフレーム
         """
         try:
             mappings = self.config.get_settings('salary', 'transformations.code_mappings')
             if not mappings:
+                st.warning("コード変換マッピングが設定されていません")
                 return
-            for col, mapping in mappings.items():
-                if col in df.columns:
-                    df[col] = df[col].map(mapping)
+
+
+            # 部門コードの変換
+            if 'department_code' in mappings and  '部門コード' in df.columns:
+                dept_mapping = mappings['department_code']
+                df['部門コード'] = df['部門コード'].map(dept_mapping)
+
+            # 部署コードの変換
+            if 'section_code' in mappings and '部署コード' in df.columns:
+                section_mapping = mappings['section_code']
+                df['部署コード'] = df['部署コード'].map(lambda x: section_mapping.get(x, x))
+
+            # 結果の確認
+            for mapping_type, code_map in mappings.items():
+                if mapping_type == 'department_code':
+                    target_col = '部門コード'
+                elif mapping_type == 'section_code':
+                    target_col = '部署コード'
+                else:
+                    continue
+
+                if target_col in df.columns:
+                    unmapped_codes = set(df[target_col].unique()) - set(code_map.values())
+                    if unmapped_codes:
+                        st.warning(f"{mapping_type}の変換に失敗したコード: {unmapped_codes}")
+
         except Exception as e:
             st.warning(f"コード変換でエラー: {str(e)}")

@@ -63,156 +63,126 @@ class ConfigLoader:
             st.error(f"設定の取得エラー: {str(e)}")
             return None
 
-    def get_required_columns(self, data_type: str) -> List[str]:
-        """必須カラムのリストを取得します。"""
-        return self.get_settings(data_type, 'input_validation.required_columns') or []
+ 
+    # def get_columns_rename(self, data_type: str) -> Dict[str, str]:
+    #     """
+    #     カラム名変換ルールを取得
+    #     Args:
+    #         data_type: データ種類
+    #     Returns:
+    #         Dict[str, str]: カラム名変換ルール
+    #     """
+    #     return self.get_settings(data_type, 'transformations.columns_rename') or {}
 
-    def get_numeric_columns(self, data_type: str) -> List[str]:
-        """数値カラムのリストを取得します。"""
-        return self.get_settings(data_type, 'input_validation.numeric_columns') or []
 
-    def get_input_columns(self, data_type: str) -> Dict[str, Any]:
-        """入力データのグループ定義を取得します。"""
-        return self.get_settings(data_type, 'input_columns') or {}
+    # def get_rules(self, data_type: str) -> Dict[str, Any]:
+    #     """
+    #     指定されたデータ種類の処理ルールを取得します。
 
-    def get_columns_rename(self, data_type: str) -> Dict[str, str]:
-        """
-        カラム名変換ルールを取得
-        Args:
-            data_type: データ種類
-        Returns:
-            Dict[str, str]: カラム名変換ルール
-        """
-        return self.get_settings(data_type, 'transformations.columns_rename') or {}
+    #     Args:
+    #         data_type (str): データの種類 ('salary' または 'bonus')
 
-    def get_total_columns(self, data_type: str) -> Dict[str, List[str]]:
-        """
-        合計カラム定義を取得
-        Args:
-            data_type: データ種類
-        Returns:
-            Dict[str, List[str]]: 合計カラム定義
-        """
-        return self.get_settings(data_type, 'aggregations.total_columns') or {}
+    #     Returns:
+    #         Dict[str, Any]: 処理ルール
+    #     """
+    #     if data_type.lower() not in self.config:
+    #         raise ValueError(f"Unknown data type: {data_type}")
+    #     return self.config[data_type.lower()]
 
-    def get_output_columns(self, data_type: str) -> List[str]:
-        """
-        出力カラム順序を取得
-        Args:
-            data_type: データ種類
-        Returns:
-            List[str]: 出力カラム順序
-        """
-        return self.get_settings(data_type, 'output_settings.columns_order') or []
+    # def get_code_mappings(self, data_type: str) -> Dict[str, Dict[Union[int, str], Union[int, str]]]:
+    #     """
+    #     コード変換ルールを取得
+    #     Args:
+    #         data_type: データ種類
+    #     Returns:
+    #         Dict[str, Dict[Union[int, str], Union[int, str]]]: コード変換ルール
+    #     """
+    #     return self.get_settings(data_type, 'transformations.code_mappings') or {}
 
-    def get_rules(self, data_type: str) -> Dict[str, Any]:
-        """
-        指定されたデータ種類の処理ルールを取得します。
+    # def get_segment_names(self, data_type: str) -> Dict[str, str]:
+    #     """
+    #     セグメント名称マッピングを取得
+    #     Args:
+    #         data_type: データ種類
+    #     Returns:
+    #         Dict[str, str]: セグメント名称マッピング
+    #     """
+    #     return self.get_settings(data_type, 'transformations.segment_names') or {}
 
-        Args:
-            data_type (str): データの種類 ('salary' または 'bonus')
+    # def get_total_columns(self, data_type: str) -> Dict[str, List[str]]:
+    #     """
+    #     合計カラム定義を取得
+    #     Args:
+    #         data_type: データ種類
+    #     Returns:
+    #         Dict[str, List[str]]: 合計カラム定義
+    #     """
+    #     return self.get_settings(data_type, 'aggregations.total_columns') or {}
 
-        Returns:
-            Dict[str, Any]: 処理ルール
-        """
-        if data_type.lower() not in self.config:
-            raise ValueError(f"Unknown data type: {data_type}")
-        return self.config[data_type.lower()]
+    # def get_conditional_rules(self, data_type: str) -> Dict[str, List[Dict[str, Any]]]:
+    #     """
+    #     条件付き変換ルールを取得
+    #     Args:
+    #         data_type: データ種類
+    #     Returns:
+    #         Dict[str, List[Dict[str, Any]]]: 条件付き変換ルール
+    #     """
+    #     return self.get_settings(data_type, 'conditional_rules') or {}
 
-    def get_code_mappings(self, data_type: str) -> Dict[str, Dict[Union[int, str], Union[int, str]]]:
-        """
-        コード変換ルールを取得
-        Args:
-            data_type: データ種類
-        Returns:
-            Dict[str, Dict[Union[int, str], Union[int, str]]]: コード変換ルール
-        """
-        return self.get_settings(data_type, 'transformations.code_mappings') or {}
+    # def get_department_codes(self, data_type: str) -> Dict[str, str]:
+    #     """
+    #     部署コード変換ルールを取得
+    #     Args:
+    #         data_type: データ種類
+    #     Returns:
+    #         Dict[str, str]: 部署コード変換ルール
+    #     """
+    #     return self.get_settings(data_type, 'transformations.department_codes') or {}
 
-    def get_segment_names(self, data_type: str) -> Dict[str, str]:
-        """
-        セグメント名称マッピングを取得
-        Args:
-            data_type: データ種類
-        Returns:
-            Dict[str, str]: セグメント名称マッピング
-        """
-        return self.get_settings(data_type, 'transformations.segment_names') or {}
+    # def get_section_codes(self, data_type: str) -> Dict[str, str]:
+    #     """
+    #     所属コード変換ルールを取得
+    #     Args:
+    #         data_type: データ種類
+    #     Returns:
+    #         Dict[str, str]: 所属コード変換ルール
+    #     """
+    #     return self.get_settings(data_type, 'transformations.section_codes') or {}
 
-    def get_total_columns(self, data_type: str) -> Dict[str, List[str]]:
-        """
-        合計カラム定義を取得
-        Args:
-            data_type: データ種類
-        Returns:
-            Dict[str, List[str]]: 合計カラム定義
-        """
-        return self.get_settings(data_type, 'aggregations.total_columns') or {}
+    # def get_segments(self, data_type: str) -> Dict[str, Any]:
+    #     """
+    #     セグメント設定を取得
+    #     Args:
+    #         data_type: データ種類
+    #     Returns:
+    #         Dict[str, Any]: セグメント設定
+    #     """
+    #     return self.get_settings(data_type, 'segments') or {}
 
-    def get_conditional_rules(self, data_type: str) -> Dict[str, List[Dict[str, Any]]]:
-        """
-        条件付き変換ルールを取得
-        Args:
-            data_type: データ種類
-        Returns:
-            Dict[str, List[Dict[str, Any]]]: 条件付き変換ルール
-        """
-        return self.get_settings(data_type, 'conditional_rules') or {}
+    # def get_segment_rules(self, data_type: str) -> List[Dict[str, Any]]:
+    #     """
+    #     セグメントコード変換ルールを取得
+    #     Args:
+    #         data_type: データ種類
+    #     Returns:
+    #         List[Dict[str, Any]]: セグメントコード変換ルール
+    #     """
+    #     return self.get_settings(data_type, 'transformations.segment_rules') or []
 
-    def get_department_codes(self, data_type: str) -> Dict[str, str]:
-        """
-        部署コード変換ルールを取得
-        Args:
-            data_type: データ種類
-        Returns:
-            Dict[str, str]: 部署コード変換ルール
-        """
-        return self.get_settings(data_type, 'transformations.department_codes') or {}
+    # def get_department_segment_rules(self, data_type: str) -> List[Dict[str, Any]]:
+    #     """
+    #     部門別セグメント変換ルールを取得
+    #     Args:
+    #         data_type: データ種類
+    #     Returns:
+    #         List[Dict[str, Any]]: 部門別セグメント変換ルール
+    #     """
+    #     return self.get_settings(data_type, 'transformations.department_segment_rules') or []
 
-    def get_section_codes(self, data_type: str) -> Dict[str, str]:
-        """
-        所属コード変換ルールを取得
-        Args:
-            data_type: データ種類
-        Returns:
-            Dict[str, str]: 所属コード変換ルール
-        """
-        return self.get_settings(data_type, 'transformations.section_codes') or {}
+    # def get_columns_order(self, data_type: str) -> list:
+    #     """列の順序を取得します。"""
+    #     return self.get_rules(data_type)['columns_order']
 
-    def get_segments(self, data_type: str) -> Dict[str, Any]:
-        """
-        セグメント設定を取得
-        Args:
-            data_type: データ種類
-        Returns:
-            Dict[str, Any]: セグメント設定
-        """
-        return self.get_settings(data_type, 'segments') or {}
-
-    def get_segment_rules(self, data_type: str) -> List[Dict[str, Any]]:
-        """
-        セグメントコード変換ルールを取得
-        Args:
-            data_type: データ種類
-        Returns:
-            List[Dict[str, Any]]: セグメントコード変換ルール
-        """
-        return self.get_settings(data_type, 'transformations.segment_rules') or []
-
-    def get_department_segment_rules(self, data_type: str) -> List[Dict[str, Any]]:
-        """
-        部門別セグメント変換ルールを取得
-        Args:
-            data_type: データ種類
-        Returns:
-            List[Dict[str, Any]]: 部門別セグメント変換ルール
-        """
-        return self.get_settings(data_type, 'transformations.department_segment_rules') or []
-
-    def get_columns_order(self, data_type: str) -> list:
-        """列の順序を取得します。"""
-        return self.get_rules(data_type)['columns_order']
-
-    def get_replace_rules(self, data_type: str) -> Dict[str, Dict[int, int]]:
-        """コード変換ルールを取得します。"""
-        return self.get_rules(data_type)['replace_rules'] 
+    # def get_replace_rules(self, data_type: str) -> Dict[str, Dict[int, int]]:
+    #     """コード変換ルールを取得します。"""
+    #     return self.get_rules(data_type)['replace_rules'] 

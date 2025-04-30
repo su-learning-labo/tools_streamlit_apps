@@ -39,9 +39,10 @@ def process_uploaded_data(uploaded_file, data_type: str) -> tuple:
 
         if not processor.process_uploaded_data():
             st.error("データの処理に失敗しました")
-            return None, None
+            return None, None, None
 
-        return processor.df, processor
+        processed_df_detail, processed_df_summary = processor.process_data()
+        return processed_df_detail, processed_df_summary, processor
 
     except Exception as e:
         st.error(f"データ処理中にエラーが発生しました: {str(e)}")
@@ -109,7 +110,15 @@ def display_processed_data(processed_df: 'pd.DataFrame') -> None:
     """
     処理後のデータを表示する。
     """
-    st.dataframe(processed_df, use_container_width=True)
+    st.dataframe(processed_df, use_container_width=True, hide_index=True)
+
+
+def display_processed_data_detail(processed_df: 'pd.DataFrame') -> None:
+    """
+    変換後の全データをグルーピングせずにexpanderで非表示状態で表示する
+    """
+    with st.expander("変換後の全データ", expanded=False):
+        st.dataframe(processed_df, use_container_width=True, hide_index=True)
 
 
 def display_accounting_data(processed_df: 'pd.DataFrame', processor) -> None:
@@ -119,32 +128,54 @@ def display_accounting_data(processed_df: 'pd.DataFrame', processor) -> None:
     if processed_df is None:
         return processed_df
 
-    # st.subheader('会計システム連携加工用データ', divider='blue')
+    df = processed_df.copy()
+    group_cols = ['原価区分', '部門コード', '部門', '部署コード', '部署', '雇用区分', 'セグメントコード', 'セグメント']
+    # --- グルーピング集計---
+    agg_cols = [col for col in df.columns if col not in group_cols]
+    agg_dict = {col: 'sum' for col in agg_cols if df[col].dtype != 'object'}
+    grouped_all = df.groupby(group_cols, as_index=False).agg(agg_dict).query('振込金額 != 0')
+
+    # --- 縦持ちデータへの変換 ---
+    # カラム範囲を取得
+    melt_idx_cols = ['原価区分', '雇用区分コード', '雇用区分', '部門コード', '部門', '部署コード', '部署', 'セグメントコード', 'セグメント']
+    melt_cols = ['基本給', '資格手当合計', '時間外勤務手当合計', 'その他手当合計', '通勤手当合計']
+
+    grouped_for_melt = df.groupby(melt_idx_cols, as_index=False).agg(agg_dict)
+    melted = grouped_for_melt.melt(id_vars=melt_idx_cols, value_vars=melt_cols, var_name='項目', value_name='金額')
+
+    # --- 支払仕訳用データ ---
+    deducation_cols = ['P健保介護','厚生年金個人', '雇用保険', '所得税', '住民税', '年調過不足', '加入者拠出', 'ランチ弁当代', 'ﾜｰｸﾘｨ知多',	'自動車保険', 'ＣＭ会費',
+                        'ＴＧ特別医療', '会社立替精算', 'その他控除', '健保給付金等', '差引支給＿負']
+
+    agg_cols_deducation = [col for col in df.columns if col not in group_cols]
+    agg_dict_deducation = {col: 'sum' for col in agg_cols_deducation if df[col].dtype != 'object'}
+    grouped_deduction = df.groupby(group_cols, as_index=False).agg(agg_dict_deducation)[group_cols + deducation_cols].query()
+
     tab1, tab2, tab3 = st.tabs(["全体", "月末計上", "支払切返"])
 
     with tab1:
         st.write('### - 全体 -')
-        st.dataframe(processor.summary)
+        st.dataframe(grouped_all, hide_index=True)
         st.write('ダウンロード')
-        csv = convert_df_to_csv(processed_df)
+        csv = convert_df_to_csv(grouped_all, index=False)
         st.download_button(
-            label='変換データ', data=csv, file_name='result_data.csv', mime='text/csv')
+            label='変換データ', data=csv, file_name='result_details.csv', mime='text/csv')
 
     with tab2:
         st.write('### - 月末計上仕訳用 -')
-        df_post_eom = processor.post_eom_data
-        post_eom_csv = convert_df_to_csv(df_post_eom, index=True)
-        st.dataframe(df_post_eom)
+        df_post_eom = melted.query('金額 != 0')
+        post_eom_csv = convert_df_to_csv(df_post_eom, index=False)
+        st.dataframe(df_post_eom, hide_index=True)
         st.write('ダウンロード')
         st.download_button(
             label='月末計上仕訳', data=post_eom_csv, file_name='result_journal_eom.csv', mime='text/csv')
 
     with tab3:
         st.write('### - 支払仕訳 -')
-        df_journal = processor.journal
-        st.dataframe(df_journal)
+        df_journal = grouped_deduction
+        st.dataframe(df_journal, hide_index=True)
         st.write('ダウンロード')
-        csv_journal = convert_df_to_csv(df_journal, index=True)
+        csv_journal = convert_df_to_csv(df_journal, index=False)
         st.download_button(
             label='支払仕訳', data=csv_journal, file_name='result_journal_payment.csv', mime='text/csv')
 
@@ -167,19 +198,20 @@ def app():
     if uploaded_file is not None:
         try:
             # アップロードファイルの変換処理
-            processed_df, processor = process_uploaded_data(uploaded_file, data_type)
+            processed_df_detail, processed_df_summary, processor = process_uploaded_data(uploaded_file, data_type)
             
-            if processed_df is not None and processor is not None:
+            if processed_df_detail is not None and  processed_df_summary is not None and processor is not None:
                 # サマリー
                 display_summary(processor)
 
                 st.subheader(':chart_with_upwards_trend: 変換後データ（チェック用）')
                 # 変換後データフレーム表示
-                display_processed_data(processed_df)
+                # display_processed_data(processed_df)
+                display_processed_data_detail(processed_df_detail)
                 
                 st.subheader('会計システム連携加工用データ', divider='blue')
                 # 会計システム連携加工用データ
-                display_accounting_data(processed_df, processor)
+                display_accounting_data(processed_df_detail, processor)
         
         except Exception as e:
             st.error(f"予期せぬエラーが発生しました: {str(e)}")
