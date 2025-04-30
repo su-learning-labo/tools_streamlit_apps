@@ -149,7 +149,7 @@ def display_accounting_data(processed_df: 'pd.DataFrame', processor) -> None:
 
     agg_cols_deducation = [col for col in df.columns if col not in group_cols]
     agg_dict_deducation = {col: 'sum' for col in agg_cols_deducation if df[col].dtype != 'object'}
-    grouped_deduction = df.groupby(group_cols, as_index=False).agg(agg_dict_deducation)[group_cols + deducation_cols].query()
+    grouped_deduction = df.groupby(group_cols, as_index=False).agg(agg_dict_deducation)[group_cols + deducation_cols].query('原価区分 != 0')
 
     tab1, tab2, tab3 = st.tabs(["全体", "月末計上", "支払切返"])
 

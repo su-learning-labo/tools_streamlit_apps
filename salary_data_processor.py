@@ -365,7 +365,7 @@ class SalaryDataProcessor:
     def _apply_code_mappings(self, df: pd.DataFrame) -> None:
         """
         設定ファイルのcode_mappingsに従い、コード値を名称等に変換する
-        Args：
+        Args:
             df: 変換対象のデータフレーム
         """
         try:
@@ -378,12 +378,16 @@ class SalaryDataProcessor:
             # 部門コードの変換
             if 'department_code' in mappings and  '部門コード' in df.columns:
                 dept_mapping = mappings['department_code']
-                df['部門コード'] = df['部門コード'].map(dept_mapping)
+                df['部門コード'] = df['部門コード'].astype(int).map(
+                    lambda x: dept_mapping.get(str(x), str(x))
+                )
 
             # 部署コードの変換
             if 'section_code' in mappings and '部署コード' in df.columns:
                 section_mapping = mappings['section_code']
-                df['部署コード'] = df['部署コード'].map(lambda x: section_mapping.get(x, x))
+                df['部署コード'] = df['部署コード'].astype(int).map(
+                    lambda x: section_mapping.get(str(x), str(x))
+                )
 
             # 結果の確認
             for mapping_type, code_map in mappings.items():
@@ -395,9 +399,14 @@ class SalaryDataProcessor:
                     continue
 
                 if target_col in df.columns:
-                    unmapped_codes = set(df[target_col].unique()) - set(code_map.values())
-                    if unmapped_codes:
-                        st.warning(f"{mapping_type}の変換に失敗したコード: {unmapped_codes}")
-
+                    # 現在の値取得（NaN以外）
+                    current_codes = set(df[target_col].dropna().astype(str).unique())
+                    unmapped = current_codes - {str(k) for k in code_map.keys()}
+                    if unmapped:
+                        st.warning(f"{mapping_type}の変換に失敗したコード: {unmapped}")
+                    str_code_map = {str(k): v for k, v in code_map.items()}
+                    df[target_col] = df[target_col].astype(str).map(
+                        lambda x: str_code_map.get(x, x) if pd.notna(x) else x
+                    )
         except Exception as e:
             st.warning(f"コード変換でエラー: {str(e)}")
