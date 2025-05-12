@@ -39,7 +39,7 @@ def process_uploaded_data(uploaded_file, data_type: str) -> tuple:
 
         if not processor.process_uploaded_data():
             st.error("データの処理に失敗しました")
-            return None, None, None
+            return None, None
 
         processed_df_detail, processed_df_summary = processor.process_data()
         return processed_df_detail, processed_df_summary, processor
@@ -129,7 +129,7 @@ def display_accounting_data(processed_df: 'pd.DataFrame', processor) -> None:
         return processed_df
 
     df = processed_df.copy()
-    group_cols = ['原価区分', '部門コード', '部門', '部署コード', '部署', '雇用区分', 'セグメントコード', 'セグメント']
+    group_cols = ['原価区分', '部門コード', '部門', '部署コード', '部署', '雇用区分コード', '雇用区分', 'セグメントコード', 'セグメント']
     # --- グルーピング集計---
     agg_cols = [col for col in df.columns if col not in group_cols]
     agg_dict = {col: 'sum' for col in agg_cols if df[col].dtype != 'object'}
