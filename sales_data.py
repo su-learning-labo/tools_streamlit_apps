@@ -64,12 +64,15 @@ class SalesData:
 
     def create_payment_chart_data(self, df: pd.DataFrame) -> 'pd.DataFrame':
         """支払方法別の棒グラフを作成"""
-        grouped_data = pd.pivot_table(
-            df, 
-            index=['MEI_NAME_V'],
-            values='SEIKYU_TOTAL',
-            aggfunc='sum'
-        ).reset_index()
+        # grouped_data = pd.pivot_table(
+        #     df, 
+        #     index=['MEI_NAME_V'],
+        #     values='SEIKYU_TOTAL',
+        #     aggfunc='sum'
+        # ).reset_index()
+
+        grouped_data = df.groupby('')
+
 
         return grouped_data
         # return alt.Chart(grouped_data).mark_bar().encode(
