@@ -145,7 +145,7 @@ def display_accounting_data(processed_df: 'pd.DataFrame', processor) -> None:
 
     # --- 支払仕訳用データ ---
     deducation_cols = ['P健保介護','厚生年金個人', '雇用保険', '所得税', '住民税', '年調過不足', '加入者拠出', 'ランチ弁当代', 'ﾜｰｸﾘｨ知多',	'自動車保険', 'ＣＭ会費',
-                        'ＴＧ特別医療', '会社立替精算', 'その他控除', '健保給付金等', '差引支給＿負']
+                        'ＴＧ特別医療', '会社立替精算', 'その他控除', '控除合計', '健保給付金等', '差引支給額', '差引支給＿負', '振込金額']
 
     agg_cols_deducation = [col for col in df.columns if col not in group_cols]
     agg_dict_deducation = {col: 'sum' for col in agg_cols_deducation if df[col].dtype != 'object'}
